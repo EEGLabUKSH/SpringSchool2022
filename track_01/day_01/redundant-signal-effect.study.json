@@ -47,7 +47,7 @@
           "name": "age",
           "attributes": {
             "type": "number",
-            "min": "18",
+            "min": "0",
             "max": "570",
             "step": "1"
           },
@@ -794,10 +794,10 @@
         }
       ],
       "metadata": {
-        "title": "Redundant Target Effect - Kara Haß",
+        "title": "Redundant Signal Effect",
         "description": "",
         "repository": "",
-        "contributors": ""
+        "contributors": "Merle Schuckart"
       }
     }
   },
