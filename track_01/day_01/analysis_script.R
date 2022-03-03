@@ -28,7 +28,7 @@
 # Variables: 
 # A = 1 unisensory audio-stimulus
 # V = 1 unisensory visual stimulus
-# VA = 1 mutisensory audio-visual stimulus
+# VA = 1 multisensory audio-visual stimulus
 
 # ----------------------------------------------------------------
 
