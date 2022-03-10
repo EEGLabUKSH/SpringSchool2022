@@ -24,5 +24,6 @@ Erklärung einer vorgeschlagenen Verzeichnisstruktur:
 ### Files
 - `README.md` contains a description of your project. This file is what people see by default when they navigate to your project folder on GitHub.
 
+##
 ## About
 Maintained by [Julius Welzel](mailto:j.welzel@neurologie.uni-kiel.de).
