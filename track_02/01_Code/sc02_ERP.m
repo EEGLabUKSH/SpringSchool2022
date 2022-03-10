@@ -15,17 +15,20 @@ close all
 ft_defaults; % Set the defualts of the FieldTrip Toolbox
 
 % Where are the data?
-inpath = ('/Users/juliankeil/Documents/Arbeit/Kiel/Lehre/WS2021/Springschool Open Science 2022/Track2/02_Data/');
-% What are the data called?
-indat = dir('*_preproc.mat');
+inpath = ('/Users/juliankeil/Documents/Arbeit/Kiel/Lehre/WS2021/Springschool Open Science 2022/GitHub/track_02/02_Data/');% What are the data called?
+
+indat = dir([inpath,'*_preproc.mat']);
 
 %% Loop participants
 for v = 1:length(indat)
     %% 1. Load the preprocessed data
-    load(indat(v).name);
+    load([inpath,indat(v).name],'data_cif','data_sta','data_tar');
     
     %% 2. Apply additional Low-Pass-Filter for ERPs
     cfg = [];
+    cfg.hpfilter = 'yes'; 
+    cfg.hpfreq = 1; 
+    cfg.hpfilttype = 'firws'; 
     cfg.lpfilter = 'yes';
     cfg.lpfreq = 35;
     cfg.lpfilttype = 'firws';
@@ -46,25 +49,42 @@ for v = 1:length(indat)
     ERP_all_bl{v} = ft_timelockbaseline(cfg,ERP_all{v});
     ERP_sta_bl{v} = ft_timelockbaseline(cfg,ERP_sta{v});
     ERP_tar_bl{v} = ft_timelockbaseline(cfg,ERP_tar{v});
+    
+    % 4.1. Fix Time vectors
+    ERP_all_bl{v}.time = ERP_all_bl{1}.time;
+    ERP_sta_bl{v}.time = ERP_sta_bl{1}.time;
+    ERP_tar_bl{v}.time = ERP_tar_bl{1}.time;
 end % Loop across participants is done
 
 %% 5. Compute the Grand Average across participants
-GA_all = ft_timelockgrandaverage([],ERP_all_bl{:});
-GA_sta = ft_timelockgrandaverage([],ERP_sta_bl{:});
-GA_tar = ft_timelockgrandaverage([],ERP_tar_bl{:});
 
-    % 5.1. And take a look at one channel (Cz)
+cfg = [];
+cfg.latency = [-1 1];
+cfg.keepindividual = 'no';
+
+GA_all = ft_timelockgrandaverage(cfg,ERP_all_bl{:});
+GA_sta = ft_timelockgrandaverage(cfg,ERP_sta_bl{:});
+GA_tar = ft_timelockgrandaverage(cfg,ERP_tar_bl{:});
+
+    % 5.1. And take a look at one channel (Cz) with Matlab basics
     figure; hold;
     plot(GA_sta.time,GA_sta.avg(18,:),'b');
     plot(GA_tar.time,GA_tar.avg(18,:),'r');
 
     % 5.2. You can also look at all channels at the same time
     cfg = [];
-    cfg.xlim = [-.5 .5]; % Set the interval to display
+    cfg.xlim = [-.5 1]; % Set the interval to display
     cfg.layout = 'EEG1020.lay'; % Set the channel layout
 
     ft_multiplotER(cfg,GA_sta,GA_tar);
+    
+    % 5.3. Or you can look at one channel in the FieldTrip viewer
+    cfg = [];
+    cfg.channel = 'Cz';
+    cfg.xlim = [-.5 1]; % Set the interval to display
+    cfg.layout = 'EEG1020.lay'; % Set the channel layout
 
+    ft_singleplotER(cfg,GA_all);
 %% 6. Extract Peaks for R
 % Find index of window of interest, e.g. between 320 and 600 ms (Comerchero
 % et al., 1999)
@@ -72,7 +92,7 @@ starti = nearest(ERP_sta_bl{1}.time,.32); % Start point
 endi = nearest(ERP_sta_bl{1}.time,.6); % End point
 
 % Define a region of interest here, e.g. only take the Cz and
-% Pz electrodes
+% Pz electrodes. Is this a good idea?
 for v = 1:length(ERP_sta_bl) % Loop VPn
     cfg = [];
     cfg.channel = {'Cz','Pz'};
@@ -83,8 +103,9 @@ for v = 1:length(ERP_sta_bl) % Loop VPn
 end
 
     % 6.1. Option 1: Pick individual Peaks
-    peaks = zeros(length(ROI_sta_bl),3,2);
-    lat = zeros(length(ROI_sta_bl),3,2);
+    % Attention, maxbe the maximum is not a good idea?
+    peaks = zeros(length(ROI_sta_bl),2,2);
+    lat = zeros(length(ROI_sta_bl),2,2);
     for v = 1:length(ROI_sta_bl) % Loop VPn
         for c = 1:size(ROI_sta_bl{v}.avg,1) % Loop Channels
             [peaks(v,c,1) lat(v,c,1)] = max(ROI_sta_bl{v}.avg(c,starti:endi));
@@ -93,7 +114,7 @@ end
     end % for v
 
     % 6.2. Option 2: Average over interval
-    peaks = zeros(length(ROI_sta_bl),3,2);
+    peaks = zeros(length(ROI_sta_bl),2,2);
     for v = 1:length(ROI_sta_bl) % Loop VPn
         for c = 1:size(ROI_sta_bl{v}.avg,1) % Loop Channels
             peaks(v,c,1) = mean(ROI_sta_bl{v}.avg(c,starti:endi));
@@ -125,7 +146,7 @@ end
     % 7.1. Option 1: Extracted Values
     % Bonferroni-correct p-value for multiple comparisons!
     for c = 1:size(peaks,2)
-        [H(c),P(c),CI(c,:),STATS{c}] = ttest(squeeze(peaks(:,c,1)),squeeze(peaks(:,c,2)), 'alpha', .05/3);
+        [H(c),P(c),CI(c,:),STATS{c}] = ttest(squeeze(peaks(:,c,1)),squeeze(peaks(:,c,2)), 'alpha', .05/2);
     end
 
     % 7.2. Option 2: Mass Univariate Approach

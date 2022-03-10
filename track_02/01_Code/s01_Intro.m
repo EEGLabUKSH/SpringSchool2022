@@ -61,6 +61,7 @@ data(2).text = 'more text';
 data(2).number = 2; % Here is a number
 data(2).vector = [11 21 31 41];
 data(2).matrix = [51 71 81; 91 101 111];
+data(2).horst = 'test';
 
 % ---Question 5: How can you access one specific field (e.g. the text of the
 % second structure or the thrid value in the first vector)?
@@ -153,7 +154,7 @@ numel(X) % Gives you the number of elements
 % this information into an output variable % Hint: The function "rem" is
 % your friend
 X = 1:3:100;
-
+clear out
 for i = 1:length(X)
     out(i) = rem(X(i),2);
 end

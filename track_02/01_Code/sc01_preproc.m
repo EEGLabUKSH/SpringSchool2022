@@ -14,18 +14,19 @@
 % Go to Current Folder
 clear all
 close all
+clc
 ft_defaults; % Set the defualts of the FieldTrip Toolbox
 
 % Where are the data?
-inpath = ('/Users/juliankeil/Documents/Arbeit/Kiel/Lehre/WS2021/Springschool Open Science 2022/Track2/02_Data/');
+inpath = ('/Users/juliankeil/Documents/Arbeit/Kiel/Lehre/WS2021/Springschool Open Science 2022/GitHub/track_02/02_Data/');
 % What are the data called?
-indat = dir('*.xdf');
+indat = dir([inpath,'*.xdf']);
 
 %% Loop participants
 for v = 1:length(indat)
     %% 1. Define the current dataset
     % Attention!
-    % If there is an error with sccn_xdf, change:
+%     % If there is an error with sccn_xdf, change:
     % * line 120: 'channels' to e.g. 'Xchannels' to avoid looking for
     % missing channel info
     % * line 150: streams{i}.time_series{j}; to streams{i}.time_series(j);
@@ -33,8 +34,8 @@ for v = 1:length(indat)
     
     % 1.1. First, read in the header to define the trials
     cfg = []; % Always clear the configuration
-    cfg.dataset = [inpath,indat(1).name]; % Set the dataset
-%     cfg.trialfun = 'ft_trialfun_show'; % If we don't know what events have happened
+    cfg.dataset = [inpath,indat(v).name]; % Set the dataset
+%   cfg.trialfun = 'ft_trialfun_show'; % If we don't know what events have happened
     cfg.trialdef.eventtype = 'Markers'; % We now know that the trigger channel is called 'Stimulus'
     cfg.trialdef.eventvalue = {20,30}; % Define the relevant triggers
     cfg.trialdef.prestim = 1.5; % Seconds before the stimulus
@@ -47,7 +48,7 @@ for v = 1:length(indat)
 
     % 1.3. Then define the entire dataset
     cfg = []; % Always clear the configuration
-    cfg.dataset = [inpath,indat(1).name]; % Set the dataset
+    cfg.dataset = [inpath,indat(v).name]; % Set the dataset
     cfg.trialdef.ntrials = 1; % One long trial to cover the entire dataset
 
     cfg = ft_definetrial(cfg); % Store the trial definition
@@ -70,6 +71,7 @@ for v = 1:length(indat)
         for c = 1:length(data_p.label)
             data_p.label{c} = data_p.hdr.orig.desc.channels.channel{c}.label;
         end
+        
     % 2.2. Cut the data according to the trial definition
     cfg = [];
     cfg.trl = trl; % Use the trl-structure defined above
@@ -95,19 +97,19 @@ for v = 1:length(indat)
         ft_databrowser(cfg,data_t); % we call the databrowser with the cfg-settings and the dat-structure defined above
    
     %% 3. Visual Artifact Rejection
-    cfg = [];
-    cfg.method = 'summary';
-    cfg.layout = 'EEG1020.lay';
-    cfg.keepchannel = 'no'; % Remove Bad channels
-    % We can also specify filters just for the artifact rejection
-    % These settings are good to identify eye blinks
-    cfg.preproc.bpfilter = 'yes';
-    cfg.preproc.bpfilttype = 'but';
-    cfg.preproc.bpfreq = [1 15];
-    cfg.preproc.bpfiltord = 4;
-    cfg.preproc.rectify = 'yes';
-    
-    data_c = ft_rejectvisual(cfg,data_t);
+%     cfg = [];
+%     cfg.method = 'summary';
+%     cfg.layout = 'EEG1020.lay';
+%     cfg.keepchannel = 'no'; % Remove Bad channels
+%     % We can also specify filters just for the artifact rejection
+%     % These settings are good to identify eye blinks
+%     cfg.preproc.bpfilter = 'yes';
+%     cfg.preproc.bpfilttype = 'but';
+%     cfg.preproc.bpfreq = [1 15];
+%     cfg.preproc.bpfiltord = 4;
+%     cfg.preproc.rectify = 'yes';
+%     
+%     data_c = ft_rejectvisual(cfg,data_t);
     
     % You have different options to identify artifacts.
     % The most useful are:
@@ -120,50 +122,82 @@ for v = 1:length(indat)
         %% 3.1. Alternative: Automatic trial removal
         % It is also possible to compute all these measures by hand, and remove
         % trials based on fixed thresholds
-        clear kurt    
-        clear zval
-        clear vari
-        clear maxi
-        clear mini
+        
+        clear goodchannels goodtrials
 
-            % 3.1.1. Compute the kurtosis
-            for t = 1:length(data_t.trial)
-                kurt(t) = kurtosis(data_t.trial{t},[],2);
+        % 3.1.1 First clean the channels
+        % We'll restrict this to outliers based on 2.5 STD above the mean
+        % First, compute the std across trials for each channel
+        % Then, compute the mean and std of the stds across channels
+            % 3.1.1.1. STD across trials
+            tmp_c = zeros(1,length(data_t.trial)*length(data_t.trial{1})); % Build an empty vector to save time
+            for c = 1:length(data_t.label) % Loop channels
+                ti = 1; % Index of trials
+                for t = 1:length(data_t.trial) % Loop trials
+                    tmp_c(ti:ti+length(data_t.trial{t})-1) = data_t.trial{t}(c,:); % Stitch all trials together
+                    ti = ti+length(data_t.trial{t}); % Move the trial index
+                end
+                std_c(c) = std(tmp_c); % And compute the std across trials
             end
+        
+            % 3.1.1.2. Compute Threshold
+            m_std = mean(std_c); % Mean of STD across trials
+            s_std = std(std_c); % STD of STD across trials
+        
+            % 3.1.1.3. Find good channels
+            goodchannels = std_c(:) <= m_std + (2.5*s_std); % Mean + 2.5*STD            
+            fprintf('\n Good channels: %d \n\n',length(goodchannels)); 
+            
+            % 3.1.1.4. Keep only good channels
+            cfg = [];
+            cfg.channel = data_t.label(logical(goodchannels));
 
-            % 3.1.2. Z-Value, Variance, and Peaks
-            for t = 1:length(data_t.trial)
-                clear zsc mu sig
-                [zsc, mu, sig] = zscore(data_t.trial{t},0,2);
-                zval(t) = max(abs(zsc));
-                vari(t) = sig; % standard deviation
-                maxi(t) = any(data_t.trial{t} >= mu+(3*sig)); % 3 STD above or
-                mini(t) = any(data_t.trial{t} <= mu-(3*sig)); % below the mean
+            data_c = ft_selectdata(cfg,data_t);
+        
+        % 3.1.2 Second, clean the trials
+        % For each trial, we'll check the kurtosis, z-value and mean across
+        % channels
+        % First, we'll compute the indices across channels for each trial
+        % Then, we'll remove trials based on thresholds
+        
+            % 3.1.2.1. Indices across channels
+            tmp_t = zeros(1,length(data_t.label)*length(data_t.trial{1})); % Build an empty vector to save time
+            for t = 1:length(data_t.trial) % Loop trials
+                ci = 1; % Index of channels
+                for c = 1:length(data_t.label) % Loop channels
+                    tmp_t(ci:ci+length(data_t.trial{t})-1) = data_t.trial{t}(c,:); % Stitch all trials together
+                    ci = ci+length(data_t.trial{t}); % Move the trial index
+                end
+                std_t(t) = std(tmp_t); % And compute the std across trials
+                kurt_t(t) = kurtosis(tmp_t,[],2); % Kurtosis
+                [zsc_t, mu_t, sig_t] = zscore(tmp_t,0,2); % Zscore
+                zval_t(t) = max(abs(zsc_t)); % Max Zscore
+                max_t(t) = max(tmp_t); % Peak Max
+                min_t(t) = min(tmp_t); % Peak Min
             end
+            
+            % 3.1.2.2. Define thresholds: 2.5 STD above the mean
+            z_thresh = mean(zval_t) + 2.5*std(zval_t);
+            k_thresh = mean(kurt_t) + 2.5*std(kurt_t);
+            v_thresh = mean(std_t) + 2.5*std(std_t);
 
-            % 3.1.3. Define thresholds
-            z_thresh = mean(zval) + std(zval);
-            k_thresh = mean(kurt) + std(kurt);
-            v_thresh = mean(vari) + std(vari);
-
-            % 3.1.4. Apply thresholds
+            % 3.1.2.3. Apply thresholds
             clear outs
             for t = 1:length(data_t.trial)
-                outs(t) = any(zval(t) >= z_thresh ...
-                            | kurt(t) >= k_thresh ...
-                            | vari(t) >= v_thresh ...
-                            | maxi(t) == 1 ...
-                            | mini(t) == 1);
+                outs(t) = any(zval_t(t) >= z_thresh ...
+                            | kurt_t(t) >= k_thresh ...
+                            | std_t(t) >= v_thresh ...
+                            | max_t(t) == 150 ...
+                            | min_t(t) == -150);
             end
 
-            clear goodtrials
             goodtrials = find(outs == 0); % Select what's left
-
-            % 3.1.5. Keep only good trials
+            fprintf('\n Good trials: %d \n\n',length(goodtrials)); 
+            % 3.1.2.4. Keep only good trials
             cfg = [];
             cfg.trials = goodtrials;
 
-            data_c = ft_selectdata(cfg,data_t); % data_psc is the, preprocessed, selected and clean data
+            data_c = ft_selectdata(cfg,data_c); % data_psc is the, preprocessed, selected and clean data
         
         %% 3.2. Re-Reference
         % After cleaning the data, it is best to re-reference the data to
@@ -199,6 +233,8 @@ for v = 1:length(indat)
         cfg = [];
         cfg.layout = 'EEG1020.lay';
         cfg.viewmode = 'component'; % same as above, just with a different mode
+        cfg.allowoverlap = 'yes';
+        
         ft_databrowser(cfg,comp);
 
         % Here, you'll actually have to write down or remember the bad
@@ -206,7 +242,7 @@ for v = 1:length(indat)
 
         %% 4.3. And take out the ones that are clearly artefacts
         cfg = [];
-        cfg.component = [1,2,3,4]; % I focus on blinks and muscle artefacts
+        cfg.component = [1]; % I focus on blinks and muscle artefacts
         data_ci = ft_rejectcomponent(cfg,comp,data_c);
 
         %% 4.4 Compare before & after
@@ -268,7 +304,7 @@ for v = 1:length(indat)
     data_sta = ft_selectdata(cfg,data_sta);
     
     %% 7. Save for later
-    save([indat(v).name,'_preproc.mat'],'data_cif','data_sta','data_tar','selvec');
+    save([inpath,indat(v).name,'_preproc.mat'],'data_cif','data_sta','data_tar','selvec');
     
 end % Loop across participants is done
 
