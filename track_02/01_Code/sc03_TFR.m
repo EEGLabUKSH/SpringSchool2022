@@ -15,14 +15,14 @@ close all
 ft_defaults; % Set the defualts of the FieldTrip Toolbox
 
 % Where are the data?
-inpath = ('/Users/juliankeil/Documents/Arbeit/Kiel/Lehre/WS2021/Springschool Open Science 2022/Track2/02_Data/');
+inpath = ('/Users/juliankeil/Documents/Arbeit/Kiel/Lehre/WS2021/Springschool Open Science 2022/GitHub/track_02/02_Data/');
 % What are the data called?
-indat = dir('*_preproc.mat');
+indat = dir([inpath,'*_preproc.mat']);
 
 %% Loop Participants
 for v = 1:length(indat)
     %% 1. Load the preprocessed data
-    load(indat(v).name);
+    load([inpath,indat(v).name]);
     
     %% 2. Option 1: FFT
     % The Fourier Transform computes the power spectral density for each frequency across time
